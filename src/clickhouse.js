@@ -82,7 +82,10 @@ function httpResponseHandler (stream, reqParams, reqData, cb, response) {
 
 			// plaintext response
 		} else if (str) {
-			str   = Buffer.concat ([str, chunk]);
+			if (cb) {
+				str   = Buffer.concat ([str, chunk]);
+			}
+			stream.push(chunk);
 		} else {
 			error = Buffer.concat ([error, chunk]);
 		}
