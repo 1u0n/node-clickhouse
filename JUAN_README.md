@@ -10,4 +10,6 @@ what I've done:
 
 how to use this fork:
 
-* always specify a text, non-json format in your queries. You can still specify callback to get the whole response at the end.
+* you can use method 'query' which returns a stream (you can still pass optional callback to get whole response at the end)
+* you can use method 'querying' which return a promise for the whole response
+* specify a text, non-json format for your queries, or don't specify any format (lib uses TabSeparated internally)

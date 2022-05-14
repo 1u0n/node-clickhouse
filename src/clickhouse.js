@@ -47,49 +47,59 @@ function httpResponseHandler (stream, reqParams, reqData, cb, response) {
 
 	var symbolsTransferred = 0;
 
-	//another chunk of data has been received, so append it to `str`
-	response.on ('data', function (chunk) {
-
+	function processJson(chunk) {
+		var newLinePos = chunk.lastIndexOf ("\n");
+		if (chunk.lastIndexOf ("\n") === -1) {
+			return processText(chunk);
+		}
+		
 		symbolsTransferred += chunk.length;
 
-		// JSON response
-		if (
-			response.headers['content-type']
-			&& response.headers['content-type'].indexOf ('application/json') === 0
-			&& !reqData.syncParser
-			&& chunk.lastIndexOf ("\n") !== -1
-			&& str
-		) {
+		var remains = chunk.slice (newLinePos + 1);
 
-			// store in buffer anything after
-			var newLinePos = chunk.lastIndexOf ("\n");
+		Buffer.concat([str, chunk.slice (0, newLinePos)])
+			.toString ('utf8')
+			.split ("\n")
+			.forEach (jsonParser);
 
-			var remains = chunk.slice (newLinePos + 1);
+		jsonParser.rows.forEach (function (row) {
+			// write to readable stream
+			stream.push (row);
+		});
 
-			Buffer.concat([str, chunk.slice (0, newLinePos)])
-				.toString ('utf8')
-				.split ("\n")
-				.forEach (jsonParser);
+		jsonParser.rows = [];
 
-			jsonParser.rows.forEach (function (row) {
-				// write to readable stream
-				stream.push (row);
-			});
+		str = remains;
+	}
 
-			jsonParser.rows = [];
-
-			str = remains;
-
-			// plaintext response
-		} else if (str) {
-			if (cb) {
-				str   = Buffer.concat ([str, chunk]);
-			}
-			stream.push(chunk);
-		} else {
-			error = Buffer.concat ([error, chunk]);
+	function processText(chunk) {
+		symbolsTransferred += chunk.length;
+		if (cb) {
+			str   = Buffer.concat ([str, chunk]);
 		}
-	});
+		stream.push(chunk);
+	}
+
+	function processError(chunk)  {
+		error = Buffer.concat ([error, chunk]);
+	}
+
+	var processor;
+	if (
+		response.headers['content-type']
+		&& response.headers['content-type'].indexOf ('application/json') === 0
+		&& !reqData.syncParser
+		&& str
+	) {
+		processor = processJson;
+	} else if (str) {
+		processor = processText;
+	} else {
+		processor = processError;
+	}
+
+	//another chunk of data has been received, so append it to `str`
+	response.on ('data', processor);
 
 	//the whole response has been received, so we just print it out here
 	response.on('end', function () {
